@@ -10,6 +10,7 @@ export default defineSchema({
     subscription_id: "string",
     monthly_request_limit: "number",
     monthly_requests_used: "number",
+    daily_requests_limit: "number",
     reset_date: "string",
     email_alerts_enabled: "boolean",
   }).index("by_email", ["email"]),
@@ -25,5 +26,19 @@ export default defineSchema({
     last_reset_at: "string",
     expires_at: "string",
     last_used_at: "string",
-  }).index("by_user", ["user_id"]),
+  }).index("by_user", ["user_id"])
+    .index("by_key_hash", ["key_hash"]),
+
+  request_logs: defineTable({
+    request_id: "string",
+    user_id: "string",
+    key_id: "string",
+    timestamp: "number",
+    status: "s",
+    endpoint: "string",
+    duration: "number",
+    ip: "string",
+  })
+    .index("by_user", ["user_id"])
+    .index("by_timestamp", ["timestamp"]),
 });
