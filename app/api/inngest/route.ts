@@ -1,7 +1,7 @@
 // app/api/inngest/route.js
 import { serve } from 'inngest/next'
-import { inngest } from '@/lib/inngest'
-import { syncDocs, processPage } from '@/inngest/functions/sync-docs'
+import { inngest } from '@/lib/inngest/client'
+import { syncDocs, processPage } from '@/lib/inngest/functions/sync-docs'
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
