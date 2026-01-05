@@ -1,7 +1,6 @@
 "use client";
-
 import { useQuery } from "convex/react";
-import { api } from "@/lib/convex/_generated/api";
+import { api } from "@/convex/_generated/api.js";
 import { formatDistanceToNow } from "date-fns";
 import {
     LineChart,
@@ -61,14 +60,12 @@ function StatusDot({ status }: { status: number }) {
 }
 
 export default function DashboardPage() {
-    // TODO: Replace with actual user ID from auth context
-    const userId = "current_user_id";
 
     // Fetch logs from Convex
     const logs = useQuery(api.logs.getRecentLogs, { userId, limit: 50 });
 
     // Fetch user info
-    const user = useQuery(api.users.getUser, { userId });
+    const user = useQuery(api.users.getUser, { userId: TEMP_USER_ID });
 
     // Transform logs for chart (group by day)
     const chartData = logs

@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
   stopWhen: stepCountIs(20), // Allow up to 20 steps
   });
 
-const aiGenerated= await myAgent.generate({
+const {output: aiGenerated} = await myAgent.generate({
   prompt: `Generate metadata for the library named "${libName}". 
 Return realistic, production-ready values. 
 If some URL is unknown, omit the field instead of guessing.`,

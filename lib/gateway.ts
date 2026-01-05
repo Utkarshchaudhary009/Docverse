@@ -1,7 +1,7 @@
 import { Redis } from "@upstash/redis";
 import { Ratelimit } from "@upstash/ratelimit";
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "./convex/_generated/api";
+import { api } from "@/convex/_generated/api";
 
 // Environment validation
 const requiredEnvVars = {
