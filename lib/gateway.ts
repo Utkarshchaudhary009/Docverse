@@ -3,6 +3,25 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "./convex/_generated/api";
 
+// Environment validation
+const requiredEnvVars = {
+  UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
+  UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
+  NEXT_PUBLIC_CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL,
+};
+
+const missingVars = Object.entries(requiredEnvVars)
+  .filter(([, value]) => !value)
+  .map(([key]) => key);
+
+if (missingVars.length > 0) {
+  console.error(`❌ Missing environment variables: ${missingVars.join(', ')}`);
+  throw new Error(
+    `Gateway configuration error: Missing ${missingVars.join(', ')}. ` +
+    'Please add these to your environment variables.'
+  );
+}
+
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,

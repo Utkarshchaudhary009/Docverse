@@ -34,7 +34,7 @@ export default defineSchema({
     user_id: "string",
     key_id: "string",
     timestamp: "number",
-    status: "s",
+    status: "number",
     endpoint: "string",
     duration: "number",
     ip: "string",
