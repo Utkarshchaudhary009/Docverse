@@ -1,6 +1,7 @@
 import { inngest } from "../client";
 import { fetchMutation } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 
 export const trackApiUsage = inngest.createFunction(
     { id: "track-api-usage" },
@@ -23,7 +24,7 @@ export const trackApiUsage = inngest.createFunction(
         // 2. Increment Usage Counter
         await step.run("update-usage-counter", async () => {
             await fetchMutation(api.users.incrementUsage, {
-                userId: event.data.userId,
+                userId: event.data.userId as Id<"users">,
             });
         });
     }

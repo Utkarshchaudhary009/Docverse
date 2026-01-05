@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "convex": "convex dev",
+    "convex:push": "convex push"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.2",

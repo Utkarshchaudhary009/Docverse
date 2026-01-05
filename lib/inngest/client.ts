@@ -20,6 +20,14 @@ type Events = {
             ip: string;
         }
     };
+    // ✅ ADD THIS EVENT DEFINITION
+    "docs/page.process": {
+        data: {
+            url: string;
+            library: string;
+            libraryId: string;
+        }
+    };
 };
 
 export const inngest = new Inngest({ id: "docverse-app", schemas: new EventSchemas().fromRecord<Events>() });

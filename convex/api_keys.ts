@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { Id } from "@/convex/_generated/dataModel";
 
 /**
  * Generates a secure random API key standard.
@@ -42,7 +43,7 @@ export const create = mutation({
         const limit = args.tier === "pro" ? 10000 : 100;
 
         const keyId = await ctx.db.insert("api_keys", {
-            user_id: args.userId,
+            user_id: args.userId as Id<"users">,
             key_hash: keyHash,
             key_prefix: keyPrefix,
             key_name: args.name,
@@ -51,6 +52,7 @@ export const create = mutation({
             requests_today: 0,
             last_reset_at: new Date().toISOString(),
             expires_at: "", // No expiry by default
+            last_used_at: "", // Initialize as empty string (never used)
         });
 
         // RETURN RAW KEY ONLY ONCE
@@ -96,29 +98,16 @@ export const rotate = mutation({
             requests_today: 0,
             last_reset_at: new Date().toISOString(),
             expires_at: oldKey.expires_at,
+            last_used_at: "", // Initialize as empty string
         });
 
         return { newKeyId, rawKey };
     }
 });
-
-// ------------------------------------------------------------
-// QUERIES
-// ------------------------------------------------------------
-
 export const validate = query({
-    args: { apiKey: v.string() }, // The RAW key from client
+    args: { apiKey: v.string() },
     handler: async (ctx, args) => {
-        // 1. Identify candidates by prefix (Optimization)
-        // Since we can't search by hash directly (client sends raw), 
-        // we can filter valid keys by prefix if we stored it, or scan all active keys for the user?
-        // Wait, client sends raw key. We HASH it, then look up by hash.
-
         const submittedHash = await hashKey(args.apiKey);
-
-        // Lookup by key_hash (indexed)
-        // Note: You need to add .index("by_key_hash", ["key_hash"]) to schema for this to be fast.
-        // Assuming user will add it or I rely on filter (slower but works for MVP).
 
         const keyRecord = await ctx.db.query("api_keys")
             .filter(q => q.eq(q.field("key_hash"), submittedHash))
@@ -126,20 +115,26 @@ export const validate = query({
 
         if (!keyRecord || !keyRecord.is_active) return { valid: false };
 
-        // Check expiry
         if (keyRecord.expires_at && new Date(keyRecord.expires_at) < new Date()) {
             return { valid: false, error: "Expired" };
         }
 
-        const user = await ctx.db.get(keyRecord.user_id as any);
+        // Fetch the user using the properly typed ID
+        const user = await ctx.db.get(keyRecord.user_id); 
         if (!user) return { valid: false };
+
+        // CORRECT USAGE:
+        // user.tier -> Correct (Property on users)
+        // keyRecord.daily_limit -> Correct (Property on api_keys)
+        // keyRecord.requests_today -> Correct (Property on api_keys)
+        // user.monthly_requests_used -> If you need this, access it on 'user'
 
         return {
             valid: true,
             keyId: keyRecord._id,
             userId: user._id,
-            tier: user.tier,
-            remaining: keyRecord.daily_limit - keyRecord.requests_today // approximate
+            tier: user.tier, // Access tier on USER object
+            remaining: keyRecord.daily_limit - keyRecord.requests_today // Access usage on KEY object
         };
     }
 });

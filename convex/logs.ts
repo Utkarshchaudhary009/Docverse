@@ -29,17 +29,19 @@ export const log = mutation({
         // Increment User Global Counters
         // Ideally this is batched or separate, but we'll do it here for atomic accuracy
         const user = await ctx.db.get(args.userId as any);
-        if (user) {
+        if (user && "monthly_requests_used" in user) {
             await ctx.db.patch(args.userId as any, {
                 monthly_requests_used: (user.monthly_requests_used || 0) + 1
             });
         }
 
         // Increment Key Specific Counters
-        const key = await ctx.db.get(args.keyId as any);
-        if (key) {
+        const keys = await ctx.db.query("api_keys")
+            .filter((q) => q.eq(q.field("_id"), args.keyId as any))
+            .first();
+        if (keys) {
             await ctx.db.patch(args.keyId as any, {
-                requests_today: (key.requests_today || 0) + 1,
+                requests_today: (keys.requests_today || 0) + 1,
                 last_used_at: new Date().toISOString()
             });
         }

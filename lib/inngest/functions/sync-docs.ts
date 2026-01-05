@@ -69,7 +69,7 @@ export const processPage = inngest.createFunction(
     id: 'process-page',
     concurrency: 10 // Process 10 at a time
   },
-  { event: 'docs/page.process' },
+  { event: 'docs/page.process' } as const,
   async ({ event, step }) => {
     const { url, library, libraryId } = event.data;
 

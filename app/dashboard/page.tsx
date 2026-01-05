@@ -2,6 +2,7 @@
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api.js";
 import { formatDistanceToNow } from "date-fns";
+import { Id } from "@/convex/_generated/dataModel";
 import {
     LineChart,
     Line,
@@ -12,7 +13,7 @@ import {
     Area,
     AreaChart,
 } from "recharts";
-
+import { useAuth } from "@clerk/nextjs";
 // Skeleton components
 function CardSkeleton() {
     return (
@@ -60,12 +61,16 @@ function StatusDot({ status }: { status: number }) {
 }
 
 export default function DashboardPage() {
+    const {userId} = useAuth();
 
+    if (userId === null || userId === undefined) {
+        return <div className="p-8">Please log in to view your dashboard.</div>;
+    }
     // Fetch logs from Convex
     const logs = useQuery(api.logs.getRecentLogs, { userId, limit: 50 });
 
     // Fetch user info
-    const user = useQuery(api.users.getUser, { userId: TEMP_USER_ID });
+    const user = useQuery(api.users.getUser, { userId: (userId as Id<"users">) });
 
     // Transform logs for chart (group by day)
     const chartData = logs
