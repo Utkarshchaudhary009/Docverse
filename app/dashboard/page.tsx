@@ -61,7 +61,7 @@ function StatusDot({ status }: { status: number }) {
 }
 
 export default function DashboardPage() {
-    const {userId} = useAuth();
+    const { userId } = useAuth();
 
     if (userId === null || userId === undefined) {
         return <div className="p-8">Please log in to view your dashboard.</div>;
@@ -70,7 +70,7 @@ export default function DashboardPage() {
     const logs = useQuery(api.logs.getRecentLogs, { userId, limit: 50 });
 
     // Fetch user info
-    const user = useQuery(api.users.getUser, { userId: (userId as Id<"users">) });
+    const user = useQuery(api.users.getUser, { userId });
 
     // Transform logs for chart (group by day)
     const chartData = logs

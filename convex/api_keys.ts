@@ -1,6 +1,5 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { Id } from "@/convex/_generated/dataModel";
 
 /**
  * Generates a secure random API key standard.
@@ -31,7 +30,7 @@ async function hashKey(key: string): Promise<string> {
 
 export const create = mutation({
     args: {
-        userId: v.string(), // In real app, infer from context.auth
+        userId: v.string(), // Clerk ID
         name: v.string(),
         tier: v.union(v.literal("free"), v.literal("pro")),
     },
@@ -43,7 +42,7 @@ export const create = mutation({
         const limit = args.tier === "pro" ? 10000 : 100;
 
         const keyId = await ctx.db.insert("api_keys", {
-            user_id: args.userId as Id<"users">,
+            user_id: args.userId, // Storing Clerk ID directly
             key_hash: keyHash,
             key_prefix: keyPrefix,
             key_name: args.name,
@@ -89,7 +88,7 @@ export const rotate = mutation({
         const keyPrefix = rawKey.substring(0, 10);
 
         const newKeyId = await ctx.db.insert("api_keys", {
-            user_id: oldKey.user_id,
+            user_id: oldKey.user_id, // This is already a Clerk ID
             key_hash: keyHash,
             key_prefix: keyPrefix,
             key_name: `${oldKey.key_name} (Rotated)`,
@@ -104,13 +103,14 @@ export const rotate = mutation({
         return { newKeyId, rawKey };
     }
 });
+
 export const validate = query({
     args: { apiKey: v.string() },
     handler: async (ctx, args) => {
         const submittedHash = await hashKey(args.apiKey);
 
         const keyRecord = await ctx.db.query("api_keys")
-            .filter(q => q.eq(q.field("key_hash"), submittedHash))
+            .withIndex("by_key_hash", (q) => q.eq("key_hash", submittedHash))
             .first();
 
         if (!keyRecord || !keyRecord.is_active) return { valid: false };
@@ -119,22 +119,20 @@ export const validate = query({
             return { valid: false, error: "Expired" };
         }
 
-        // Fetch the user using the properly typed ID
-        const user = await ctx.db.get(keyRecord.user_id); 
-        if (!user) return { valid: false };
+        // Fetch the user using the Clerk ID stored in the keyRecord
+        const user = await ctx.db.query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerk_id", keyRecord.user_id))
+            .unique();
 
-        // CORRECT USAGE:
-        // user.tier -> Correct (Property on users)
-        // keyRecord.daily_limit -> Correct (Property on api_keys)
-        // keyRecord.requests_today -> Correct (Property on api_keys)
-        // user.monthly_requests_used -> If you need this, access it on 'user'
+        if (!user) return { valid: false };
 
         return {
             valid: true,
             keyId: keyRecord._id,
-            userId: user._id,
-            tier: user.tier, // Access tier on USER object
-            remaining: keyRecord.daily_limit - keyRecord.requests_today // Access usage on KEY object
+            userId: user.clerk_id, // Return Clerk ID for external usage consistency
+            internalUserId: user._id, // Also return internal ID if useful
+            tier: user.tier,
+            remaining: keyRecord.daily_limit - keyRecord.requests_today
         };
     }
 });
