@@ -83,57 +83,81 @@ export const updateTier = mutation({
 });
 
 export const syncUser = internalMutation({
-  args: {
-    clerk_id: v.string(),
-    email: v.optional(v.string()),
-    full_name: v.optional(v.string()),
-    avatar_url: v.optional(v.string()),
-    event_type: v.string(),
-  },
-  handler: async (ctx, args) => {
-    // 1. Check Existence by Clerk ID
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerk_id", args.clerk_id))
-      .unique();
+    args: {
+        clerk_id: v.string(),
+        email: v.optional(v.string()),
+        full_name: v.optional(v.string()),
+        avatar_url: v.optional(v.string()),
+        event_type: v.string(),
+    },
+    handler: async (ctx, args) => {
+        // 1. Check Existence by Clerk ID
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerk_id", args.clerk_id))
+            .unique();
 
-    // 2. Handle DELETE (Hard Delete)
-    if (args.event_type === "user.deleted") {
-      if (user) {
-        await ctx.db.delete(user._id);
-        const keys = await ctx.db.query("api_keys")
-             .withIndex("by_user", q => q.eq("user_id", user._id))
-             .collect();
-        for (const k of keys) await ctx.db.delete(k._id);
-      }
-      return;
-    }
+        // 2. Handle DELETE (Hard Delete)
+        if (args.event_type === "user.deleted") {
+            if (user) {
+                await ctx.db.delete(user._id);
+                const keys = await ctx.db.query("api_keys")
+                    .withIndex("by_user", q => q.eq("user_id", user._id))
+                    .collect();
+                for (const k of keys) await ctx.db.delete(k._id);
+            }
+            return;
+        }
 
-    // 3. Handle CREATE / UPDATE
-    if (user) {
-        await ctx.db.patch(user._id, {
-            full_name: args.full_name || user.full_name,
-            email: args.email || user.email,
-            avatar_url: args.avatar_url || user.avatar_url,
+        // 3. Handle CREATE / UPDATE
+        if (user) {
+            await ctx.db.patch(user._id, {
+                full_name: args.full_name || user.full_name,
+                email: args.email || user.email,
+                avatar_url: args.avatar_url || user.avatar_url,
+            });
+            return;
+        }
+
+        await ctx.db.insert("users", {
+            clerk_id: args.clerk_id,
+            tokenIdentifier: args.clerk_id,
+            email: args.email!,
+            full_name: args.full_name!,
+            avatar_url: args.avatar_url || "",
+            tier: "free",
+            role: "user",
+            status: "active",
+            subscription_id: "",
+            monthly_request_limit: 100,
+            monthly_requests_used: 0,
+            daily_requests_limit: 100,
+            reset_date: new Date().toISOString(),
+            email_alerts_enabled: true,
         });
-        return;
-    }
+    },
+});
 
-    await ctx.db.insert("users", {
-        clerk_id: args.clerk_id,
-        tokenIdentifier: args.clerk_id, 
-        email: args.email!,
-        full_name: args.full_name!,
-        avatar_url: args.avatar_url || "",
-        tier: "free",
-        role: "user",
-        status: "active",
-        subscription_id: "",
-        monthly_request_limit: 100,
-        monthly_requests_used: 0,
-        daily_requests_limit: 100,
-        reset_date: new Date().toISOString(),
-        email_alerts_enabled: true,
-    });
-  },
+export const incrementUsage = mutation({
+    args: { userId: v.string() }, // Accept string for Clerk ID
+    handler: async (ctx, args) => {
+        // Attempt lookup by Clerk ID
+        const userByClerk = await ctx.db.query("users")
+            .withIndex("by_clerk_id", q => q.eq("clerk_id", args.userId))
+            .unique();
+
+        // Attempt lookup by ID if string looks like an ID (optional but safe)
+        let user = userByClerk;
+        if (!user) {
+            try {
+                user = await ctx.db.get(args.userId as any);
+            } catch (e) { /* ignore cast error */ }
+        }
+
+        if (user) {
+            await ctx.db.patch(user._id, {
+                monthly_requests_used: (user.monthly_requests_used || 0) + 1
+            });
+        }
+    }
 });

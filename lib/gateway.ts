@@ -1,17 +1,13 @@
 import { Redis } from "@upstash/redis";
 import { Ratelimit } from "@upstash/ratelimit";
 import { auth } from "@clerk/nextjs/server";
-import { ConvexHttpClient } from "convex/browser";
-import { api } from "./convex/_generated/api";
+import { inngest } from "@/lib/inngest/client";
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-
-// Defining limits per tier
 const LIMITS = {
   free: 100,
   developer: 1000,
@@ -19,19 +15,15 @@ const LIMITS = {
 };
 
 export async function validateRequest(req: Request) {
-  // 1. Session-Based Auth (No DB Query)
   const { userId, sessionClaims } = await auth();
 
   if (!userId || !sessionClaims) {
     return { valid: false, status: 401, error: "Unauthorized" };
   }
 
-  // 2. Extract Metadata from Session Token
-  // This allows zero-latency tier checks
   const tier = sessionClaims.metadata?.tier || "free";
   const limit = LIMITS[tier];
 
-  // 3. Rate Limit using Clerk User ID
   const ratelimit = new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(limit, "1 d"),
@@ -42,34 +34,34 @@ export async function validateRequest(req: Request) {
   const { success, remaining } = await ratelimit.limit(userId);
 
   if (!success) {
-    // Async Log Failure
-    // Using context.waitUntil pattern if available in calling route, 
-    // or just fire-and-forget promise here (less reliable on edge but simple for now)
-    await convex.mutation(api.logs.log, {
-      requestId: crypto.randomUUID(),
-      userId,
-      keyId: "session",
-      timestamp: Date.now(),
-      status: 429,
-      endpoint: new URL(req.url).pathname,
-      duration: 0,
-      ip: "session-ip"
+    // Log Failure via Inngest
+    await inngest.send({
+      name: "analytics/request.logged",
+      data: {
+        requestId: crypto.randomUUID(),
+        userId,
+        status: 429,
+        endpoint: new URL(req.url).pathname,
+        duration: 0,
+        ip: "session-ip"
+      }
     });
 
     return { valid: false, status: 429, error: "Rate Limit Exceeded" };
   }
 
-  // 4. Success Tracker
+  // Success Tracker via Inngest
   const track = async () => {
-    await convex.mutation(api.logs.log, {
-      requestId: crypto.randomUUID(),
-      userId,
-      keyId: "session",
-      timestamp: Date.now(),
-      status: 200,
-      endpoint: new URL(req.url).pathname,
-      duration: 0,
-      ip: "session-ip"
+    await inngest.send({
+      name: "analytics/request.logged",
+      data: {
+        requestId: crypto.randomUUID(),
+        userId,
+        status: 200,
+        endpoint: new URL(req.url).pathname,
+        duration: 0,
+        ip: "session-ip"
+      }
     });
   };
 
